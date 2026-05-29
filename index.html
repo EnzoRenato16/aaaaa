@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pré-vendas · Mundo Invest</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:          #0b1829;
+      --surface:     #112240;
+      --surface2:    #1a3055;
+      --border:      rgba(255,255,255,0.07);
+      --text:        #f0f4ff;
+      --muted:       #7a90b0;
+      --blue:        #4169e1;
+      --blue-bright: #5b7fff;
+      --blue-bg:     rgba(65,105,225,0.15);
+      --green:       #10b981;
+      --green-bg:    rgba(16,185,129,0.12);
+      --amber:       #f59e0b;
+      --amber-bg:    rgba(245,158,11,0.12);
+      --red:         #f43f5e;
+      --red-bg:      rgba(244,63,94,0.12);
+      --font:        'DM Sans', sans-serif;
+      --mono:        'DM Mono', monospace;
+    }
+    html, body {
+      height: 100%; overflow: hidden;
+      font-family: var(--font);
+      background: var(--bg); color: var(--text);
+    }
+
+    /* ── LAYOUT ── */
+    .page {
+      height: 100vh;
+      display: flex; flex-direction: column;
+      padding: 14px 20px 12px; gap: 10px;
+    }
+
+    /* ── HEADER ── */
+    .page-header {
+      display: flex; align-items: center; gap: 20px;
+      flex-shrink: 0; padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .page-logo img { height: 38px; width: auto; display: block; }
+    .header-divider { width:1px; height:32px; background:var(--border); }
+    .header-titles { flex:1; }
+    .page-title {
+      font-size:10px; font-weight:500; letter-spacing:0.14em;
+      text-transform:uppercase; color:var(--muted);
+    }
+    .page-subtitle {
+      font-size:20px; font-weight:700; letter-spacing:-0.02em; line-height:1.1;
+    }
+    .header-controls { display:flex; align-items:center; gap:10px; }
+    .control-label {
+      font-size:10px; font-weight:500; letter-spacing:0.08em;
+      text-transform:uppercase; color:var(--muted); margin-bottom:4px;
+    }
+    .month-select {
+      border:1px solid var(--border); background:var(--surface2); color:var(--text);
+      padding:8px 12px; border-radius:8px; font-size:13px; font-family:var(--font);
+      min-width:150px; outline:none; cursor:pointer;
+    }
+    .month-select:focus { border-color:var(--blue); }
+    .period-badge {
+      font-family:var(--mono); font-size:10px; color:var(--blue-bright);
+      background:var(--blue-bg); padding:5px 12px; border-radius:20px;
+      border:1px solid rgba(91,127,255,0.25);
+    }
+    .status-message {
+      display:none; padding:8px 12px; border-radius:8px; font-size:12px; flex-shrink:0;
+    }
+    .status-loading { display:block; background:var(--blue-bg); color:var(--blue-bright); }
+    .status-error   { display:block; background:var(--red-bg);  color:var(--red); }
+
+    /* ── KPI ROW ── */
+    .kpi-section {
+      display:grid; grid-template-columns:repeat(7,minmax(0,1fr));
+      gap:8px; flex-shrink:0;
+    }
+    .kpi {
+      background:var(--surface); border-radius:10px; padding:12px 14px;
+      border:1px solid var(--border); position:relative; overflow:hidden;
+    }
+    .kpi::before {
+      content:''; position:absolute; top:0; left:0;
+      width:3px; height:100%;
+      background:var(--kpi-color, var(--blue)); border-radius:10px 0 0 10px;
+    }
+    .kpi-label {
+      font-size:9px; font-weight:600; text-transform:uppercase;
+      letter-spacing:0.1em; color:var(--muted); margin-bottom:6px;
+    }
+    .kpi-val {
+      font-size:24px; font-weight:700; letter-spacing:-0.03em; line-height:1;
+    }
+    .kpi-sub { font-size:10px; color:var(--muted); margin-top:4px; font-family:var(--mono); }
+    .kpi-val.blue  { color:var(--blue-bright); }
+    .kpi-val.green { color:var(--green); }
+    .kpi-val.red   { color:var(--red); }
+    .kpi-val.amber { color:var(--amber); }
+
+    /* ── MAIN ── */
+    .main-content {
+      flex:1; display:grid; grid-template-columns:340px 1fr;
+      gap:10px; min-height:0;
+    }
+
+    /* Coluna de gráficos (esquerda) */
+    .charts-col {
+      display:flex; flex-direction:column; gap:8px; min-height:0;
+    }
+    .chart-box {
+      background:var(--surface); border-radius:10px; padding:12px 14px 8px;
+      border:1px solid var(--border); flex:1; min-height:0;
+      display:flex; flex-direction:column;
+    }
+    .chart-box-title {
+      font-size:9px; font-weight:600; text-transform:uppercase;
+      letter-spacing:0.1em; color:var(--muted); margin-bottom:8px; flex-shrink:0;
+    }
+    .chart-legend {
+      display:flex; gap:14px; margin-bottom:8px; flex-wrap:wrap; flex-shrink:0;
+    }
+    .legend-item { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--muted); }
+    .legend-dot  { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+    .chart-canvas-wrap { flex:1; position:relative; min-height:0; }
+
+    /* ══════════════════════════════════════════
+       PAINEL DIREITO — Spotlight / Grade
+    ══════════════════════════════════════════ */
+    .spotlight-panel {
+      display:flex; flex-direction:column; gap:8px; min-height:0;
+    }
+
+    /* Barra de filtros + progress */
+    .sdr-nav {
+      flex-shrink:0; background:var(--surface); border-radius:10px;
+      padding:10px 12px; border:1px solid var(--border);
+      display:flex; flex-direction:column; gap:8px;
+    }
+    .sdr-nav-top {
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+    }
+    .sdr-nav-label {
+      font-size:9px; font-weight:600; text-transform:uppercase;
+      letter-spacing:0.1em; color:var(--muted); white-space:nowrap;
+    }
+    .sdr-buttons {
+      display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;
+    }
+    .sdr-btn {
+      font-size:10px; font-weight:600; font-family:var(--font);
+      padding:4px 11px; border-radius:20px; cursor:pointer;
+      border:1px solid var(--border); background:transparent;
+      color:var(--muted); transition:all 0.2s; white-space:nowrap;
+    }
+    .sdr-btn:hover { border-color:var(--blue); color:var(--text); }
+    .sdr-btn.active {
+      background:var(--blue); border-color:var(--blue);
+      color:#fff; box-shadow:0 0 12px rgba(65,105,225,0.4);
+    }
+
+    /* Countdown progress */
+    .countdown-wrap {
+      display:flex; align-items:center; gap:8px;
+    }
+    .countdown-track {
+      flex:1; height:3px; background:var(--surface2); border-radius:99px; overflow:hidden;
+    }
+    .countdown-fill {
+      height:100%; border-radius:99px; background:var(--blue-bright);
+      transition:width 1s linear;
+    }
+    .countdown-label {
+      font-size:9px; font-family:var(--mono); color:var(--muted);
+      white-space:nowrap; min-width:28px; text-align:right;
+    }
+
+    /* Conteúdo do spotlight */
+    .spotlight-content { flex:1; min-height:0; overflow:hidden; }
+
+    /* ── GRADE GERAL ── */
+    .sdr-grid {
+      height:100%; display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:8px; align-content:start;
+      overflow-y:auto; padding-right:2px;
+    }
+    .sdr-grid::-webkit-scrollbar { width:4px; }
+    .sdr-grid::-webkit-scrollbar-track { background:transparent; }
+    .sdr-grid::-webkit-scrollbar-thumb { background:var(--surface2); border-radius:4px; }
+
+    .sdr-card {
+      background:var(--surface); border-radius:10px; padding:11px 13px;
+      border:1px solid var(--border); transition:border-color 0.2s;
+    }
+    .sdr-card:hover { border-color:rgba(65,105,225,0.35); }
+    .sdr-card-top {
+      display:flex; justify-content:space-between; align-items:flex-start;
+      margin-bottom:10px; gap:6px;
+    }
+    .sdr-name { font-size:13px; font-weight:600; letter-spacing:-0.01em; }
+    .canal-tag {
+      font-size:9px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;
+      padding:2px 8px; border-radius:20px; white-space:nowrap; flex-shrink:0;
+    }
+    .canal-leads { background:var(--blue-bg); color:var(--blue-bright); border:1px solid rgba(91,127,255,0.2); }
+    .canal-recicl{ background:var(--amber-bg); color:var(--amber); border:1px solid rgba(245,158,11,0.2); }
+    .canal-out   { background:rgba(139,92,246,0.12); color:#a78bfa; border:1px solid rgba(139,92,246,0.2); }
+    .canal-voip  { background:rgba(236,72,153,0.12); color:#f472b6; border:1px solid rgba(236,72,153,0.2); }
+    .canal-none  { background:var(--surface2); color:var(--muted); border:1px solid var(--border); }
+
+    .sdr-stats {
+      display:grid; grid-template-columns:repeat(4,1fr); gap:0; margin-bottom:10px;
+    }
+    .stat { text-align:center; padding:0 3px; }
+    .stat + .stat { border-left:1px solid var(--border); }
+    .stat-num {
+      font-size:15px; font-weight:700; letter-spacing:-0.02em;
+      font-family:var(--mono); color:var(--text);
+    }
+    .stat-lbl {
+      font-size:8.5px; text-transform:uppercase; letter-spacing:0.06em;
+      color:var(--muted); margin-top:2px;
+    }
+    .stat-num.vendas-val { color:var(--green); }
+    .stat-num.noshow-hi  { color:var(--red); }
+    .stat-num.noshow-mid { color:var(--amber); }
+    .stat-num.noshow-ok  { color:var(--green); }
+
+    .progress-top {
+      display:flex; justify-content:space-between; align-items:center;
+      margin-bottom:4px; gap:6px;
+    }
+    .progress-label { font-size:9.5px; color:var(--muted); }
+    .progress-badge {
+      font-size:10px; font-weight:700; font-family:var(--mono);
+      padding:1px 7px; border-radius:20px; white-space:nowrap;
+    }
+    .badge-g { background:var(--green-bg); color:var(--green); border:1px solid rgba(16,185,129,0.25); }
+    .badge-a { background:var(--amber-bg); color:var(--amber); border:1px solid rgba(245,158,11,0.25); }
+    .badge-r { background:var(--red-bg);   color:var(--red);   border:1px solid rgba(244,63,94,0.25); }
+    .prog-track { background:var(--surface2); border-radius:99px; height:4px; overflow:hidden; }
+    .prog-fill  { height:100%; border-radius:99px; }
+    .no-meta    { font-size:10px; color:var(--muted); font-style:italic; }
+
+    /* ══════════════════════════════════════════
+       SPOTLIGHT INDIVIDUAL
+    ══════════════════════════════════════════ */
+    .spotlight-single {
+      height:100%; display:flex; flex-direction:column; gap:10px;
+    }
+
+    /* Cabeçalho do SDR */
+    .spot-header {
+      background:var(--surface); border-radius:10px; padding:16px 20px;
+      border:1px solid var(--border); flex-shrink:0;
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+    }
+    .spot-name-wrap { display:flex; flex-direction:column; gap:4px; }
+    .spot-name {
+      font-size:28px; font-weight:700; letter-spacing:-0.02em; line-height:1;
+    }
+    .spot-comercial { font-size:11px; color:var(--muted); font-family:var(--mono); }
+
+    /* Big stats row */
+    .spot-stats {
+      display:grid; grid-template-columns:repeat(4,1fr); gap:8px; flex-shrink:0;
+    }
+    .spot-stat {
+      background:var(--surface); border-radius:10px; padding:14px 16px;
+      border:1px solid var(--border); text-align:center;
+      position:relative; overflow:hidden;
+    }
+    .spot-stat::before {
+      content:''; position:absolute; top:0; left:0;
+      width:100%; height:3px;
+      background:var(--stat-color, var(--blue));
+    }
+    .spot-stat-num {
+      font-size:36px; font-weight:700; font-family:var(--mono);
+      letter-spacing:-0.03em; line-height:1; margin-bottom:4px;
+    }
+    .spot-stat-lbl {
+      font-size:10px; font-weight:600; text-transform:uppercase;
+      letter-spacing:0.08em; color:var(--muted);
+    }
+
+    /* Atingimento */
+    .spot-progress-box {
+      background:var(--surface); border-radius:10px; padding:14px 20px;
+      border:1px solid var(--border); flex-shrink:0;
+    }
+    .spot-prog-top {
+      display:flex; justify-content:space-between; align-items:center;
+      margin-bottom:10px;
+    }
+    .spot-prog-label { font-size:12px; color:var(--muted); }
+    .spot-prog-pct {
+      font-size:22px; font-weight:700; font-family:var(--mono); letter-spacing:-0.02em;
+    }
+    .spot-prog-track {
+      background:var(--surface2); border-radius:99px; height:8px; overflow:hidden;
+    }
+    .spot-prog-fill { height:100%; border-radius:99px; transition:width 0.6s ease; }
+
+    /* Chart individual */
+    .spot-chart-box {
+      background:var(--surface); border-radius:10px; padding:12px 16px 10px;
+      border:1px solid var(--border); flex:1; min-height:0;
+      display:flex; flex-direction:column;
+    }
+    .spot-chart-title {
+      font-size:9px; font-weight:600; text-transform:uppercase;
+      letter-spacing:0.1em; color:var(--muted); margin-bottom:8px; flex-shrink:0;
+    }
+    .spot-canvas-wrap { flex:1; position:relative; min-height:0; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="page-header">
+    <div class="page-logo"><img src="logo.png" alt="Mundo Invest"></div>
+    <div class="header-divider"></div>
+    <div class="header-titles">
+      <p class="page-title">Pré-vendas · Relatório de desempenho</p>
+      <h1 class="page-subtitle">Resultados do time</h1>
+    </div>
+    <div class="header-controls">
+      <div>
+        <p class="control-label">Escolha o mês</p>
+        <select id="mesSelect" class="month-select">
+          <option value="Janeiro">Janeiro</option>
+          <option value="Fevereiro">Fevereiro</option>
+          <option value="Março">Março</option>
+          <option value="Abril">Abril</option>
+          <option value="Maio">Maio</option>
+          <option value="Junho">Junho</option>
+          <option value="Julho">Julho</option>
+          <option value="Agosto">Agosto</option>
+          <option value="Setembro">Setembro</option>
+          <option value="Outubro">Outubro</option>
+          <option value="Novembro">Novembro</option>
+          <option value="Dezembro">Dezembro</option>
+        </select>
+      </div>
+      <span class="period-badge" id="periodBadge">—</span>
+    </div>
+  </div>
+
+  <div id="statusMessage" class="status-message"></div>
+
+  <!-- KPIs -->
+  <div class="kpi-section">
+    <div class="kpi" style="--kpi-color:#4169e1">
+      <p class="kpi-label">Meta do período</p>
+      <p class="kpi-val blue" id="kpiMetaPeriodo">0</p>
+    </div>
+    <div class="kpi" style="--kpi-color:#10b981">
+      <p class="kpi-label">Realizado</p>
+      <p class="kpi-val green" id="kpiRealizado">0</p>
+      <p class="kpi-sub" id="kpiRealizadoSub">0% da meta</p>
+    </div>
+    <div class="kpi" style="--kpi-color:#f43f5e">
+      <p class="kpi-label">Gap da meta</p>
+      <p class="kpi-val red" id="kpiGapMeta">0</p>
+      <p class="kpi-sub">reuniões em falta</p>
+    </div>
+    <div class="kpi" style="--kpi-color:#f59e0b">
+      <p class="kpi-label">No-show geral</p>
+      <p class="kpi-val amber" id="kpiNoShowGeral">0%</p>
+      <p class="kpi-sub" id="kpiNoShowSub">de 0 agendadas</p>
+    </div>
+    <div class="kpi" style="--kpi-color:#7c3aed">
+      <p class="kpi-label">Total agendadas</p>
+      <p class="kpi-val" id="kpiTotalAgendadas">0</p>
+    </div>
+    <div class="kpi" style="--kpi-color:#06b6d4">
+      <p class="kpi-label">Comparecimento</p>
+      <p class="kpi-val" id="kpiComparecimento">0%</p>
+    </div>
+    <div class="kpi" style="--kpi-color:#10b981">
+      <p class="kpi-label">Total vendas</p>
+      <p class="kpi-val green" id="kpiTotalVendas">0</p>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main-content">
+
+    <!-- Coluna esquerda: gráficos -->
+    <div class="charts-col">
+      <div class="chart-box">
+        <div class="chart-box-title">Realizadas vs meta por SDR</div>
+        <div class="chart-legend">
+          <span class="legend-item"><span class="legend-dot" style="background:#10b981"></span>Acima/na meta</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#f59e0b"></span>60–99%</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#f43f5e"></span>Abaixo de 60%</span>
+          <span class="legend-item"><span class="legend-dot" style="background:#4a5568;border:1px dashed #7a90b0"></span>Meta</span>
+        </div>
+        <div class="chart-canvas-wrap">
+          <canvas id="cAting"></canvas>
+        </div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-box-title">Vendas por SDR</div>
+        <div class="chart-canvas-wrap">
+          <canvas id="cVendas"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Coluna direita: spotlight -->
+    <div class="spotlight-panel">
+
+      <!-- Barra de navegação SDR -->
+      <div class="sdr-nav">
+        <div class="sdr-nav-top">
+          <span class="sdr-nav-label">Filtrar por SDR</span>
+          <div class="sdr-buttons" id="sdrButtons"></div>
+        </div>
+        <div class="countdown-wrap">
+          <div class="countdown-track">
+            <div class="countdown-fill" id="countdownFill" style="width:100%"></div>
+          </div>
+          <span class="countdown-label" id="countdownLabel">15s</span>
+        </div>
+      </div>
+
+      <!-- Conteúdo dinâmico -->
+      <div class="spotlight-content" id="spotlightContent"></div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const PLANILHA_ID = "1rKEgOVqX3sSPGngTSjJpwEbtNKsvUCxCPyizXZLE0X4";
+  const ROTATION_SEC = 15;
+
+  let chartAting   = null;
+  let chartVendas  = null;
+  let chartSpot    = null;
+
+  let allSDRs      = [];
+  let rotationIdx  = 0;   // 0 = Geral, 1..N = SDR individual
+  let rotationTimer = null;
+  let countdownTimer = null;
+  let secondsLeft  = ROTATION_SEC;
+  let manualLock   = false; // se true, pausa rotação automática
+
+  /* ── helpers ── */
+  const mostrarStatus = (t, tipo="loading") => {
+    const b = document.getElementById("statusMessage");
+    b.textContent = t;
+    b.className = "status-message " + (tipo==="error"?"status-error":"status-loading");
+  };
+  const esconderStatus = () => {
+    const b = document.getElementById("statusMessage");
+    b.textContent = ""; b.className = "status-message";
+  };
+  const parseN = v => {
+    if (v===null||v===undefined) return 0;
+    let t = String(v).trim();
+    if (!t||t==="#DIV/0!") return 0;
+    t = t.replace(/\./g,"").replace(",",".").replace("%","").replace(/[^\d.-]/g,"");
+    const n = Number(t); return isNaN(n)?0:n;
+  };
+  const fmt  = v => new Intl.NumberFormat("pt-BR").format(v);
+  const fmtP = v => v.toFixed(1).replace(".",",")+"%";
+  const canalClass = c => {
+    if (!c||c==="—") return "canal-none";
+    const s = String(c).toLowerCase();
+    if (s.includes("lead"))  return "canal-leads";
+    if (s.includes("recic")) return "canal-recicl";
+    if (s.includes("out"))   return "canal-out";
+    if (s.includes("voip"))  return "canal-voip";
+    return "canal-none";
+  };
+  const barColor = p => p>=100?"#10b981":p>=60?"#f59e0b":"#f43f5e";
+  const nsClass  = p => p>=70?"noshow-hi":p>=55?"noshow-mid":"noshow-ok";
+  const bClass   = p => p>=100?"badge-g":p>=60?"badge-a":"badge-r";
+  const getMes   = () => ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+    "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"][new Date().getMonth()];
+
+  /* ── fetch ── */
+  async function buscarDadosDaAba(aba) {
+    const url = `https://docs.google.com/spreadsheets/d/${PLANILHA_ID}/gviz/tq?sheet=${encodeURIComponent(aba)}&tqx=out:json`;
+    const r   = await fetch(url);
+    const t   = await r.text();
+    const json = JSON.parse(t.substring(47,t.length-2));
+    if (!json.table||!json.table.rows) throw new Error("Erro ao ler planilha.");
+    return json.table.rows.map(row =>
+      (row.c||[]).map(cell => cell&&cell.v!==null&&cell.v!==undefined?cell.v:"")
+    );
+  }
+
+  /* ── extract ── */
+  function extrairDados(linhas) {
+    let iSDR=-1, iRes=-1;
+    for (let i=0;i<linhas.length;i++) {
+      if (String(linhas[i][0]||"").trim().toLowerCase()==="sdr") iSDR=i;
+      if (linhas[i].join(" ").toLowerCase().includes("resumo geral")) { iRes=i; break; }
+    }
+    if (iSDR===-1) throw new Error("Cabeçalho SDR não encontrado.");
+    if (iRes===-1) iRes=linhas.length;
+
+    const sdrs=[];
+    for (let i=iSDR+1;i<iRes;i++) {
+      const l=linhas[i];
+      const nome=String(l[0]||"").trim();
+      if (!nome||nome.toLowerCase()==="outros") continue;
+      sdrs.push({
+        name:       nome,
+        comercial:  String(l[1]||"").trim(),
+        canal:      String(l[2]||"").trim(),
+        agendadas:  parseN(l[3]),
+        realizadas: parseN(l[4]),
+        vendas:     parseN(l[5]),
+        comparecimento: parseN(l[6]),
+        meta:       parseN(l[7]),
+        atingimento:parseN(l[8]),
+        status:     String(l[9]||"").trim()
+      });
+    }
+    let totAg=0,totRe=0,totMe=0;
+    for (let i=iRes+1;i<linhas.length;i++) {
+      const lbl=String(linhas[i][0]||"").trim().toLowerCase();
+      const v=parseN(linhas[i][3]);
+      if (lbl.includes("total reuniões agendadas"))  totAg=v;
+      else if (lbl.includes("total reuniões realizadas")) totRe=v;
+      else if (lbl.includes("total de metas"))            totMe=v;
+    }
+    const totalAg = totAg||sdrs.reduce((a,s)=>a+s.agendadas,0);
+    const totalRe = totRe||sdrs.reduce((a,s)=>a+s.realizadas,0);
+    const totalVe = sdrs.reduce((a,s)=>a+s.vendas,0);
+    const totalMe = totMe||0;
+    const comp    = totalAg>0?(totalRe/totalAg)*100:0;
+    const noShow  = totalAg>0?((totalAg-totalRe)/totalAg)*100:0;
+    return {
+      totalMeta:totalMe, totalAgendadas:totalAg, totalRealizadas:totalRe,
+      totalVendas:totalVe, comparecimentoGeral:comp, noShowGeral:noShow,
+      gapMeta:Math.max(totalMe-totalRe,0), sdrs
+    };
+  }
+
+  /* ── KPIs ── */
+  function atualizarKPIs(d, mes) {
+    const at = d.totalMeta>0?(d.totalRealizadas/d.totalMeta)*100:0;
+    document.getElementById("kpiMetaPeriodo").textContent    = fmt(d.totalMeta);
+    document.getElementById("kpiRealizado").textContent      = fmt(d.totalRealizadas);
+    document.getElementById("kpiRealizadoSub").textContent   = fmtP(at)+" da meta";
+    document.getElementById("kpiGapMeta").textContent        = fmt(d.gapMeta);
+    document.getElementById("kpiNoShowGeral").textContent    = fmtP(d.noShowGeral);
+    document.getElementById("kpiNoShowSub").textContent      = "de "+fmt(d.totalAgendadas)+" agendadas";
+    document.getElementById("kpiTotalAgendadas").textContent = fmt(d.totalAgendadas);
+    document.getElementById("kpiComparecimento").textContent = fmtP(d.comparecimentoGeral);
+    document.getElementById("kpiTotalVendas").textContent    = fmt(d.totalVendas);
+    document.getElementById("periodBadge").textContent       = mes;
+  }
+
+  /* ══════════════════════════════════════════
+     SPOTLIGHT — renderiza grade ou individual
+  ══════════════════════════════════════════ */
+  function renderSpotlight(idx) {
+    const content = document.getElementById("spotlightContent");
+
+    // Atualizar botões
+    document.querySelectorAll(".sdr-btn").forEach((btn,i) => {
+      btn.classList.toggle("active", i===idx);
+    });
+
+    if (idx===0) {
+      renderGrade(content);
+    } else {
+      const sdr = allSDRs[idx-1];
+      if (sdr) renderIndividual(content, sdr);
+    }
+  }
+
+  /* ── Grade geral ── */
+  function renderGrade(container) {
+    container.innerHTML = `<div class="sdr-grid" id="sdrGrid"></div>`;
+    const grid = document.getElementById("sdrGrid");
+    allSDRs.forEach(s => {
+      const noShow   = s.agendadas>0?(100-(s.realizadas/s.agendadas)*100):0;
+      const ating    = s.meta>0?(s.realizadas/s.meta)*100:0;
+      const barWidth = Math.min(ating,100);
+      const div = document.createElement("div");
+      div.className = "sdr-card";
+      div.innerHTML = `
+        <div class="sdr-card-top">
+          <span class="sdr-name">${s.name}</span>
+          <span class="canal-tag ${canalClass(s.canal)}">${s.canal||"—"}</span>
+        </div>
+        <div class="sdr-stats">
+          <div class="stat"><div class="stat-num">${fmt(s.agendadas)}</div><div class="stat-lbl">Agend.</div></div>
+          <div class="stat"><div class="stat-num">${fmt(s.realizadas)}</div><div class="stat-lbl">Realiz.</div></div>
+          <div class="stat"><div class="stat-num vendas-val">${fmt(s.vendas)}</div><div class="stat-lbl">Vendas</div></div>
+          <div class="stat"><div class="stat-num ${nsClass(noShow)}">${fmtP(noShow)}</div><div class="stat-lbl">No-show</div></div>
+        </div>
+        ${s.meta>0?`
+          <div class="progress-top">
+            <span class="progress-label">Meta ${fmt(s.meta)}</span>
+            <span class="progress-badge ${bClass(ating)}">${Math.round(ating)}%</span>
+          </div>
+          <div class="prog-track"><div class="prog-fill" style="width:${barWidth}%;background:${barColor(ating)}"></div></div>
+        `:`<p class="no-meta">Sem meta definida</p>`}
+      `;
+      grid.appendChild(div);
+    });
+  }
+
+  /* ── Spotlight individual ── */
+  function renderIndividual(container, s) {
+    const noShow = s.agendadas>0?(100-(s.realizadas/s.agendadas)*100):0;
+    const ating  = s.meta>0?(s.realizadas/s.meta)*100:0;
+    const barW   = Math.min(ating,100);
+    const progColor = barColor(ating);
+
+    // Média do time
+    const avg = (key) => allSDRs.length>0
+      ? allSDRs.reduce((a,x)=>a+x[key],0)/allSDRs.length : 0;
+
+    container.innerHTML = `
+      <div class="spotlight-single">
+
+        <!-- Nome + canal -->
+        <div class="spot-header">
+          <div class="spot-name-wrap">
+            <span class="spot-name">${s.name}</span>
+            <span class="spot-comercial">${s.comercial||"—"}</span>
+          </div>
+          <span class="canal-tag ${canalClass(s.canal)}" style="font-size:11px;padding:4px 14px">${s.canal||"—"}</span>
+        </div>
+
+        <!-- Big 4 stats -->
+        <div class="spot-stats">
+          <div class="spot-stat" style="--stat-color:#5b7fff">
+            <div class="spot-stat-num" style="color:var(--blue-bright)">${fmt(s.agendadas)}</div>
+            <div class="spot-stat-lbl">Agendadas</div>
+          </div>
+          <div class="spot-stat" style="--stat-color:#10b981">
+            <div class="spot-stat-num" style="color:var(--green)">${fmt(s.realizadas)}</div>
+            <div class="spot-stat-lbl">Realizadas</div>
+          </div>
+          <div class="spot-stat" style="--stat-color:#10b981">
+            <div class="spot-stat-num" style="color:var(--green)">${fmt(s.vendas)}</div>
+            <div class="spot-stat-lbl">Vendas</div>
+          </div>
+          <div class="spot-stat" style="--stat-color:${noShow>=70?'#f43f5e':noShow>=55?'#f59e0b':'#10b981'}">
+            <div class="spot-stat-num" style="color:${noShow>=70?'var(--red)':noShow>=55?'var(--amber)':'var(--green)'}">${fmtP(noShow)}</div>
+            <div class="spot-stat-lbl">No-show</div>
+          </div>
+        </div>
+
+        <!-- Atingimento -->
+        ${s.meta>0?`
+        <div class="spot-progress-box">
+          <div class="spot-prog-top">
+            <span class="spot-prog-label">Atingimento da meta (${fmt(s.meta)} reuniões)</span>
+            <span class="spot-prog-pct" style="color:${progColor}">${Math.round(ating)}%</span>
+          </div>
+          <div class="spot-prog-track">
+            <div class="spot-prog-fill" style="width:${barW}%;background:${progColor}"></div>
+          </div>
+        </div>
+        `:`<div class="spot-progress-box"><p class="no-meta">Sem meta definida para este SDR.</p></div>`}
+
+        <!-- Gráfico comparativo -->
+        <div class="spot-chart-box">
+          <div class="spot-chart-title">Este SDR vs média do time</div>
+          <div class="spot-canvas-wrap">
+            <canvas id="cSpot"></canvas>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Renderizar gráfico comparativo
+    if (chartSpot) { chartSpot.destroy(); chartSpot=null; }
+    const labels   = ["Agendadas","Realizadas","Vendas"];
+    const sdrData  = [s.agendadas, s.realizadas, s.vendas];
+    const avgData  = [avg("agendadas"), avg("realizadas"), avg("vendas")];
+
+    requestAnimationFrame(() => {
+      const canvas = document.getElementById("cSpot");
+      if (!canvas) return;
+      chartSpot = new Chart(canvas, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: s.name,
+              data: sdrData,
+              backgroundColor: ["rgba(91,127,255,0.8)","rgba(16,185,129,0.8)","rgba(16,185,129,0.8)"],
+              borderRadius: 6, barPercentage: 0.4
+            },
+            {
+              label: "Média do time",
+              data: avgData,
+              type: "line",
+              pointRadius: 5,
+              pointBackgroundColor: "#f59e0b",
+              pointBorderColor: "#0b1829",
+              pointBorderWidth: 2,
+              borderColor: "#f59e0b",
+              borderWidth: 2,
+              backgroundColor: "transparent",
+              tension: 0,
+              borderDash: [5,4]
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              labels: { color:"#7a90b0", font:{size:10,family:"DM Sans"}, boxWidth:10, padding:14 }
+            },
+            tooltip: { callbacks: { label: ctx => ctx.dataset.label+": "+ctx.raw.toFixed(1) } }
+          },
+          scales: {
+            x: { ticks:{color:"#7a90b0",font:{size:11}}, grid:{display:false}, border:{display:false} },
+            y: { beginAtZero:true, ticks:{color:"#7a90b0",font:{size:10,family:"DM Mono"},precision:0},
+                 grid:{color:"rgba(255,255,255,0.04)"}, border:{display:false} }
+          }
+        }
+      });
+    });
+  }
+
+  /* ══════════════════════════════════════════
+     ROTAÇÃO AUTOMÁTICA
+  ══════════════════════════════════════════ */
+  function criarBotoes() {
+    const wrap = document.getElementById("sdrButtons");
+    wrap.innerHTML = "";
+
+    // Botão Geral
+    const btnGeral = document.createElement("button");
+    btnGeral.className = "sdr-btn active";
+    btnGeral.textContent = "Geral";
+    btnGeral.addEventListener("click", () => selecionarManual(0));
+    wrap.appendChild(btnGeral);
+
+    // Um botão por SDR
+    allSDRs.forEach((s,i) => {
+      const btn = document.createElement("button");
+      btn.className = "sdr-btn";
+      btn.textContent = s.name.split(" ")[0]; // primeiro nome
+      btn.addEventListener("click", () => selecionarManual(i+1));
+      wrap.appendChild(btn);
+    });
+  }
+
+  function selecionarManual(idx) {
+    manualLock = true;
+    rotationIdx = idx;
+    secondsLeft = ROTATION_SEC;
+    atualizarCountdown();
+    renderSpotlight(rotationIdx);
+
+    // Retomar rotação automática após 30s sem interação
+    clearTimeout(window._unlockTimer);
+    window._unlockTimer = setTimeout(() => { manualLock = false; }, 30000);
+  }
+
+  function avancarRotacao() {
+    if (manualLock) return;
+    const total = allSDRs.length + 1; // Geral + SDRs
+    rotationIdx = (rotationIdx + 1) % total;
+    renderSpotlight(rotationIdx);
+  }
+
+  function atualizarCountdown() {
+    const fill  = document.getElementById("countdownFill");
+    const label = document.getElementById("countdownLabel");
+    if (!fill||!label) return;
+    const pct = (secondsLeft / ROTATION_SEC) * 100;
+    fill.style.width = pct + "%";
+    fill.style.background = secondsLeft <= 3 ? "#f59e0b" : "var(--blue-bright)";
+    label.textContent = secondsLeft + "s";
+  }
+
+  function iniciarRotacao() {
+    // Timer de rotação (15s)
+    clearInterval(rotationTimer);
+    rotationTimer = setInterval(() => {
+      if (!manualLock) {
+        secondsLeft = ROTATION_SEC;
+        avancarRotacao();
+      }
+    }, ROTATION_SEC * 1000);
+
+    // Timer de countdown (1s)
+    clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      if (!manualLock) {
+        secondsLeft = Math.max(0, secondsLeft - 1);
+        atualizarCountdown();
+        if (secondsLeft === 0) secondsLeft = ROTATION_SEC;
+      } else {
+        secondsLeft = ROTATION_SEC;
+        atualizarCountdown();
+      }
+    }, 1000);
+  }
+
+  /* ── Gráficos esquerda ── */
+  function renderizarGraficoMeta(sdrs) {
+    const com = sdrs.filter(s=>s.meta>0);
+    if (chartAting) chartAting.destroy();
+    chartAting = new Chart(document.getElementById("cAting"), {
+      type:"bar",
+      data:{
+        labels: com.map(s=>s.name.split(" ")[0]),
+        datasets:[
+          { label:"Realizadas", data:com.map(s=>s.realizadas),
+            backgroundColor: com.map(s=>barColor(s.meta>0?(s.realizadas/s.meta)*100:0)),
+            borderRadius:4, barPercentage:0.55 },
+          { label:"Meta", data:com.map(s=>s.meta), type:"line",
+            pointRadius:0, borderColor:"rgba(255,255,255,0.2)",
+            borderWidth:1.5, borderDash:[5,4], backgroundColor:"transparent" }
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false},
+          tooltip:{callbacks:{label:ctx=>ctx.dataset.label+": "+ctx.raw}} },
+        scales:{
+          x:{ticks:{color:"#7a90b0",font:{size:10}},grid:{display:false},border:{display:false}},
+          y:{beginAtZero:true,ticks:{color:"#7a90b0",font:{size:10,family:"DM Mono"}},
+             grid:{color:"rgba(255,255,255,0.04)"},border:{display:false}}
+        }
+      }
+    });
+  }
+
+  function renderizarGraficoVendas(sdrs) {
+    const com = sdrs.filter(s=>s.agendadas>0||s.vendas>0);
+    if (chartVendas) chartVendas.destroy();
+    chartVendas = new Chart(document.getElementById("cVendas"), {
+      type:"bar",
+      data:{
+        labels: com.map(s=>s.name.split(" ")[0]),
+        datasets:[{ label:"Vendas", data:com.map(s=>s.vendas),
+          backgroundColor: com.map(s=>s.vendas>0?"rgba(16,185,129,0.8)":"rgba(16,185,129,0.12)"),
+          borderRadius:6, barPercentage:0.5 }]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false},
+          tooltip:{callbacks:{label:ctx=>"Vendas: "+ctx.raw}} },
+        scales:{
+          x:{ticks:{color:"#7a90b0",font:{size:10}},grid:{display:false},border:{display:false}},
+          y:{beginAtZero:true,ticks:{color:"#7a90b0",font:{size:10,family:"DM Mono"},stepSize:1,precision:0},
+             grid:{color:"rgba(255,255,255,0.04)"},border:{display:false}}
+        }
+      }
+    });
+  }
+
+  /* ── MAIN ── */
+  async function carregarDashboard() {
+    const mes = document.getElementById("mesSelect").value;
+    try {
+      mostrarStatus("Carregando "+mes+"…");
+      const linhas = await buscarDadosDaAba(mes);
+      const dados  = extrairDados(linhas);
+
+      allSDRs = dados.sdrs;
+
+      atualizarKPIs(dados, mes);
+      criarBotoes();
+      renderizarGraficoMeta(dados.sdrs);
+      renderizarGraficoVendas(dados.sdrs);
+
+      // Renderizar vista atual (mantém posição)
+      renderSpotlight(rotationIdx);
+      iniciarRotacao();
+      esconderStatus();
+    } catch(e) {
+      console.error(e);
+      mostrarStatus("Erro ao carregar ""+mes+"". Verifique se a aba existe e se a planilha é pública.", "error");
+    }
+  }
+
+  document.getElementById("mesSelect").addEventListener("change", () => {
+    rotationIdx = 0; carregarDashboard();
+  });
+  document.getElementById("mesSelect").value = getMes();
+  carregarDashboard();
+
+  // Recarrega dados a cada 60s (sem resetar a posição do spotlight)
+  setInterval(() => { carregarDashboard(); }, 60000);
+</script>
+</body>
+</html>
